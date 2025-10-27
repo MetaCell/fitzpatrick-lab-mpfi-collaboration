@@ -1,0 +1,15 @@
+[workspace]
+authors = ["phildong <35715936+phildong@users.noreply.github.com>"]
+channels = ["conda-forge"]
+name = "fitzpatrick-sted"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = "<3.13"
+napari = "<0.6"
+napari-aicsimageio = ">=0.7.2,<0.8"
+pyqt = ">=5.15.11,<6"
+tifffile = "<2025"
