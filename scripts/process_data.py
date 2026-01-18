@@ -5,8 +5,19 @@ import napari
 import numpy as np
 import xarray as xr
 from bioio import BioImage
+from magicgui.widgets import RangeSlider
 from scipy.ndimage import gaussian_filter
 from skimage.io import imsave
+
+
+def add_z_range_selector(viewer, z_max):
+    """Add a z-range selector widget to the viewer. Returns dict with selection."""
+    result = {"z_range": (0, z_max)}
+    slider = RangeSlider(min=0, max=z_max, value=(0, z_max), label="Z Range")
+    slider.changed.connect(lambda val: result.update(z_range=val))
+    viewer.window.add_dock_widget(slider, name="Z Range", area="bottom")
+    return result
+
 
 IN_DPATH = Path(__file__).parents[1] / "data" / "separate"
 OUT_DPATH = Path(__file__).parents[1] / "data" / "separate" / "output"
@@ -37,22 +48,27 @@ for obf_file in IN_DPATH.glob("*.obf"):
         layers_data.append((im_xr, chn_name))
     if layers_data:
         viewer = napari.Viewer(title=obf_file.stem)
+        z_max = 0
         for im_xr, chn_name in layers_data:
+            z_max = max(im_xr.sizes["Z"], z_max)
             viewer.add_image(
                 im_xr.data,
                 name=chn_name,
                 colormap=COLOR_MAP[chn_name],
                 blending="additive",
             )
+        zrng = add_z_range_selector(viewer, z_max)
         napari.run()
-        # After viewer is closed, read contrast limits and save multi-page TIFF
+        # After viewer is closed, read contrast limits and z-range, save multi-page TIFF
+        z_start, z_end = zrng["z_range"]
         for layer in viewer.layers:
             clim = layer.contrast_limits
             data = layer.data.squeeze()  # Shape: (z, height, width)
+            data = data[z_start : z_end + 1, :, :]  # Apply z-range selection
             dat_clip = np.clip(data, clim[0], clim[1])
             dat_norm = (dat_clip - clim[0]) / (clim[1] - clim[0]) * 255
             fpath = OUT_DPATH / f"{obf_file.stem}-{layer.name}.tiff"
             imsave(fpath, dat_norm.astype(np.uint8))
             print(
-                f"Saved {fpath.name} with {data.shape[0]} z-slices, contrast limits {clim}"
+                f"Saved {fpath.name} with z-range [{z_start}:{z_end}], contrast limits {clim}"
             )
