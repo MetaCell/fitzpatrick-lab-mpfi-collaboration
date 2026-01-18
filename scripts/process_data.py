@@ -2,11 +2,15 @@
 from pathlib import Path
 
 import napari
+import numpy as np
 import xarray as xr
 from bioio import BioImage
 from scipy.ndimage import gaussian_filter
+from skimage.io import imsave
 
 IN_DPATH = Path(__file__).parents[1] / "data" / "separate"
+OUT_DPATH = Path(__file__).parents[1] / "data" / "separate" / "output"
+OUT_DPATH.mkdir(parents=True, exist_ok=True)
 COLOR_MAP = {"STAR RED": "red", "STAR GREEN": "green", "STAR ORANGE": "orange"}
 GS_SIGMA = {"STAR RED": 1, "STAR GREEN": 1, "STAR ORANGE": 1}
 
@@ -41,3 +45,14 @@ for obf_file in IN_DPATH.glob("*.obf"):
                 blending="additive",
             )
         napari.run()
+        # After viewer is closed, read contrast limits and save multi-page TIFF
+        for layer in viewer.layers:
+            clim = layer.contrast_limits
+            data = layer.data.squeeze()  # Shape: (z, height, width)
+            dat_clip = np.clip(data, clim[0], clim[1])
+            dat_norm = (dat_clip - clim[0]) / (clim[1] - clim[0]) * 255
+            fpath = OUT_DPATH / f"{obf_file.stem}-{layer.name}.tiff"
+            imsave(fpath, dat_norm.astype(np.uint8))
+            print(
+                f"Saved {fpath.name} with {data.shape[0]} z-slices, contrast limits {clim}"
+            )
